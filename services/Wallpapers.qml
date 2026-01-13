@@ -110,7 +110,7 @@ Searcher {
         property string videoPath
         readonly property string outputPath: `${Paths.cache}/video_preview.png`
 
-        command: ["ffmpeg", "-i", videoPath, "-ss", "00:00:10", "-frames:v", "1", "-q:v", "2", "-f", "image2", outputPath]
+        command: ["ffmpeg", "-y", "-i", videoPath, "-ss", "00:00:10", "-frames:v", "1", "-q:v", "2", "-f", "image2", outputPath]
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 // Frame extracted successfully, now analyze it
