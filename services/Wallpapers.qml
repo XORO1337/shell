@@ -16,6 +16,7 @@ Searcher {
     property bool showPreview: false
     readonly property string current: showPreview ? previewPath : actualCurrent
     property string previewPath
+    property string previewFramePath
     property string actualCurrent
     property bool previewColourLock
 
@@ -26,6 +27,7 @@ Searcher {
 
     function preview(path: string): void {
         previewPath = path;
+        previewFramePath = path;
         showPreview = true;
 
         if (Colours.scheme === "dynamic") {
@@ -41,6 +43,12 @@ Searcher {
     function extractVideoFrameForPreview(videoPath: string): void {
         videoFrameExtractProc.videoPath = videoPath;
         videoFrameExtractProc.running = true;
+    }
+
+    function stopPreview(): void {
+        showPreview = false;
+        if (!previewColourLock)
+            Colours.showPreview = false;
     }
 
     list: wallpapers.entries
@@ -87,7 +95,7 @@ Searcher {
     Process {
         id: getPreviewColoursProc
 
-        command: ["caelestia", "wallpaper", "-p", root.previewPath, ...root.smartArg]
+        command: ["caelestia", "wallpaper", "-p", root.previewFramePath, ...root.smartArg]
         stdout: StdioCollector {
             onStreamFinished: {
                 Colours.load(text, true);
@@ -100,12 +108,13 @@ Searcher {
         id: videoFrameExtractProc
 
         property string videoPath
+        readonly property string outputPath: `${Paths.cache}/video_preview.png`
 
-        command: ["ffmpeg", "-i", videoPath, "-ss", "00:00:10", "-frames:v", "1", "-q:v", "2", "-f", "image2", "/tmp/caelestia_video_preview.png"]
+        command: ["ffmpeg", "-i", videoPath, "-ss", "00:00:10", "-frames:v", "1", "-q:v", "2", "-f", "image2", outputPath]
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 // Frame extracted successfully, now analyze it
-                getPreviewColoursProc.command = ["caelestia", "wallpaper", "-p", "/tmp/caelestia_video_preview.png", ...root.smartArg];
+                root.previewFramePath = outputPath;
                 getPreviewColoursProc.running = true;
             } else {
                 console.warn("Failed to extract video frame for preview");
