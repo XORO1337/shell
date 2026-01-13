@@ -6,28 +6,77 @@ import qs.components.filedialog
 import qs.services
 import qs.config
 import qs.utils
+import Quickshell
+import Quickshell.Io
 import QtQuick
 
 Item {
     id: root
 
+    required property var screen
+
     property string source: Wallpapers.current
-    property Image current: one
+    property Item current: one
+    readonly property bool isVideo: Images.isValidVideoByName(source)
+
+    // Expose whether video is active so Background.qml can adjust
+    readonly property bool videoActive: isVideo && source
 
     anchors.fill: parent
 
     onSourceChanged: {
-        if (!source)
+        if (!source) {
             current = null;
-        else if (current === one)
-            two.update();
-        else
-            one.update();
+            mpvpaperProc.running = false;
+        } else if (isVideo) {
+            // For videos, start mpvpaper
+            current = null;
+            one.path = "";
+            two.path = "";
+            mpvpaperProc.running = true;
+        } else {
+            // For images, use the image crossfade system
+            mpvpaperProc.running = false;
+            if (current === one)
+                two.update();
+            else
+                one.update();
+        }
     }
 
     Component.onCompleted: {
-        if (source)
+        if (source && !isVideo)
             Qt.callLater(() => one.update());
+        else if (source && isVideo)
+            mpvpaperProc.running = true;
+    }
+
+    // mpvpaper process for video wallpapers
+    Process {
+        id: mpvpaperProc
+
+        property list<string> mpvOptions: {
+            let opts = [];
+            if (Config.background.videoWallpaper.loop)
+                opts.push("--loop");
+            if (Config.background.videoWallpaper.muted)
+                opts.push("--mute=yes");
+            else
+                opts.push(`--volume=${Math.round(Config.background.videoWallpaper.volume * 100)}`);
+            if (Config.background.videoWallpaper.pauseOnFullscreen)
+                opts.push("--pause");
+            if (Config.background.videoWallpaper.hwdec)
+                opts.push(`--hwdec=${Config.background.videoWallpaper.hwdec}`);
+            return opts;
+        }
+
+        command: ["mpvpaper", "-o", mpvOptions.join(" "), root.screen?.name ?? "*", root.source]
+
+        onExited: (exitCode, exitStatus) => {
+            if (running && exitCode !== 0) {
+                console.warn("mpvpaper exited with code:", exitCode);
+            }
+        }
     }
 
     Loader {
@@ -71,8 +120,8 @@ Item {
                             id: dialog
 
                             title: qsTr("Select a wallpaper")
-                            filterLabel: qsTr("Image files")
-                            filters: Images.validImageExtensions
+                            filterLabel: qsTr("Image and video files")
+                            filters: Images.validMediaExtensions
                             onAccepted: path => Wallpapers.setWallpaper(path)
                         }
 
@@ -100,16 +149,21 @@ Item {
         }
     }
 
+    // Image wallpaper components (only used for static images)
     Img {
         id: one
+        visible: !root.isVideo
     }
 
     Img {
         id: two
+        visible: !root.isVideo
     }
 
     component Img: CachingImage {
         id: img
+
+        property string pathInternal
 
         function update(): void {
             if (path === root.source)

@@ -4,6 +4,9 @@
 #include <QtQuick/qquickitemgrabresult.h>
 #include <qfuturewatcher.h>
 #include <qimage.h>
+#include <qmimedatabase.h>
+#include <qprocess.h>
+#include <qtemporaryfile.h>
 #include <qquickwindow.h>
 
 namespace caelestia {
@@ -123,6 +126,57 @@ void ImageAnalyser::requestUpdate() {
     }
 }
 
+QImage ImageAnalyser::extractVideoFrame(const QString& videoPath) {
+    // Check if ffmpeg is available
+    QProcess testProcess;
+    testProcess.start("which", QStringList() << "ffmpeg");
+    if (!testProcess.waitForFinished(2000) || testProcess.exitCode() != 0) {
+        qWarning() << "ImageAnalyser::extractVideoFrame: ffmpeg not found, cannot extract video frames";
+        return QImage();
+    }
+    
+    QTemporaryFile tempFile;
+    tempFile.setFileTemplate("XXXXXX.png");
+    tempFile.setAutoRemove(true);
+    
+    if (!tempFile.open()) {
+        qWarning() << "ImageAnalyser::extractVideoFrame: Failed to create temporary file";
+        return QImage();
+    }
+    
+    const QString tempPath = tempFile.fileName();
+    tempFile.close();
+    
+    // Use ffmpeg to extract a frame at 10 seconds (or 10% of duration, whichever is smaller)
+    QProcess process;
+    process.start("ffmpeg", QStringList() 
+        << "-i" << videoPath
+        << "-ss" << "00:00:10"  // Seek to 10 seconds
+        << "-frames:v" << "1"    // Extract 1 frame
+        << "-q:v" << "2"         // Quality setting
+        << "-f" << "image2"      // Output format
+        << tempPath
+    );
+    
+    if (!process.waitForFinished(15000)) { // 15 second timeout
+        qWarning() << "ImageAnalyser::extractVideoFrame: ffmpeg process timed out or failed:" << process.errorString();
+        return QImage();
+    }
+    
+    if (process.exitCode() != 0) {
+        qWarning() << "ImageAnalyser::extractVideoFrame: ffmpeg failed with exit code:" << process.exitCode();
+        qWarning() << "ffmpeg stderr:" << process.readAllStandardError();
+        return QImage();
+    }
+    
+    QImage frame(tempPath);
+    if (frame.isNull()) {
+        qWarning() << "ImageAnalyser::extractVideoFrame: Failed to load extracted frame";
+    }
+    
+    return frame;
+}
+
 void ImageAnalyser::update() {
     if (m_source.isEmpty() && !m_sourceItem) {
         return;
@@ -139,7 +193,19 @@ void ImageAnalyser::update() {
         });
     } else {
         m_futureWatcher->setFuture(QtConcurrent::run([=, this](QPromise<AnalyseResult>& promise) {
-            const QImage image(m_source);
+            QImage image;
+            
+            // Check if source is a video file
+            const QMimeDatabase db;
+            const QString mime = db.mimeTypeForFile(m_source).name();
+            if (mime.startsWith("video/")) {
+                // Extract a frame from the video
+                image = extractVideoFrame(m_source);
+            } else {
+                // Load as regular image
+                image = QImage(m_source);
+            }
+            
             analyse(promise, image, m_rescaleSize);
         }));
     }

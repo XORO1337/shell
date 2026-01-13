@@ -56,6 +56,7 @@ private:
 
     void update();
     static void analyse(QPromise<AnalyseResult>& promise, const QImage& image, int rescaleSize);
+    static QImage extractVideoFrame(const QString& videoPath);
 };
 
 } // namespace caelestia

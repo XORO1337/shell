@@ -28,14 +28,19 @@ Searcher {
         previewPath = path;
         showPreview = true;
 
-        if (Colours.scheme === "dynamic")
-            getPreviewColoursProc.running = true;
+        if (Colours.scheme === "dynamic") {
+            if (Images.isValidVideoByName(path)) {
+                // For videos, extract a frame first
+                extractVideoFrameForPreview(path);
+            } else {
+                getPreviewColoursProc.running = true;
+            }
+        }
     }
 
-    function stopPreview(): void {
-        showPreview = false;
-        if (!previewColourLock)
-            Colours.showPreview = false;
+    function extractVideoFrameForPreview(videoPath: string): void {
+        videoFrameExtractProc.videoPath = videoPath;
+        videoFrameExtractProc.running = true;
     }
 
     list: wallpapers.entries
@@ -76,7 +81,7 @@ Searcher {
 
         recursive: true
         path: Paths.wallsdir
-        filter: FileSystemModel.Images
+        filter: FileSystemModel.Media
     }
 
     Process {
@@ -87,6 +92,24 @@ Searcher {
             onStreamFinished: {
                 Colours.load(text, true);
                 Colours.showPreview = true;
+            }
+        }
+    }
+
+    Process {
+        id: videoFrameExtractProc
+
+        property string videoPath
+
+        command: ["ffmpeg", "-i", videoPath, "-ss", "00:00:10", "-frames:v", "1", "-q:v", "2", "-f", "image2", "/tmp/caelestia_video_preview.png"]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                // Frame extracted successfully, now analyze it
+                getPreviewColoursProc.command = ["caelestia", "wallpaper", "-p", "/tmp/caelestia_video_preview.png", ...root.smartArg];
+                getPreviewColoursProc.running = true;
+            } else {
+                console.warn("Failed to extract video frame for preview");
+                Colours.showPreview = false;
             }
         }
     }

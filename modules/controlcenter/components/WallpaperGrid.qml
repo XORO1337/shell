@@ -7,6 +7,7 @@ import qs.components.effects
 import qs.components.images
 import qs.services
 import qs.config
+import qs.utils
 import Caelestia.Models
 import QtQuick
 
@@ -37,6 +38,7 @@ GridView {
         height: root.cellHeight
 
         readonly property bool isCurrent: modelData && modelData.path === Wallpapers.actualCurrent
+        readonly property bool isVideo: modelData && modelData.isVideo
         readonly property real itemMargin: Appearance.spacing.normal / 2
         readonly property real itemRadius: Appearance.rounding.normal
 
@@ -70,11 +72,11 @@ GridView {
                 CachingImage {
                     id: cachingImage
 
-                    path: modelData.path
+                    path: isVideo ? "" : modelData.path
                     anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
                     cache: true
-                    visible: opacity > 0
+                    visible: !isVideo && opacity > 0
                     antialiasing: true
                     smooth: true
                     sourceSize: Qt.size(width, height)
@@ -89,16 +91,49 @@ GridView {
                     }
                 }
 
-                // Fallback if CachingImage fails to load
+                // Video placeholder with icon
+                Item {
+                    anchors.fill: parent
+                    visible: isVideo
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        text: "movie"
+                        color: Colours.tPalette.m3outline
+                        font.pointSize: Appearance.font.size.extraLarge * 1.5
+                        font.weight: 600
+                    }
+
+                    // Video play icon overlay
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: Appearance.padding.small
+                        width: playIcon.implicitWidth + Appearance.padding.small * 2
+                        height: playIcon.implicitHeight + Appearance.padding.small * 2
+                        radius: Appearance.rounding.small
+                        color: Qt.rgba(0, 0, 0, 0.6)
+
+                        MaterialIcon {
+                            id: playIcon
+                            anchors.centerIn: parent
+                            text: "play_arrow"
+                            color: "white"
+                            font.pointSize: Appearance.font.size.small
+                        }
+                    }
+                }
+
+                // Fallback if CachingImage fails to load (only for images)
                 Image {
                     id: fallbackImage
 
                     anchors.fill: parent
-                    source: fallbackTimer.triggered && cachingImage.status !== Image.Ready ? modelData.path : ""
+                    source: !isVideo && fallbackTimer.triggered && cachingImage.status !== Image.Ready ? modelData.path : ""
                     asynchronous: true
                     fillMode: Image.PreserveAspectCrop
                     cache: true
-                    visible: opacity > 0
+                    visible: !isVideo && opacity > 0
                     antialiasing: true
                     smooth: true
                     sourceSize: Qt.size(width, height)

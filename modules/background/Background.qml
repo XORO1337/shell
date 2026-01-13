@@ -24,7 +24,8 @@ Loader {
             name: "background"
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Background
-            color: "black"
+            // Make window transparent when mpvpaper is handling video
+            color: wallpaper.videoActive ? "transparent" : "black"
 
             anchors.top: true
             anchors.bottom: true
@@ -33,6 +34,7 @@ Loader {
 
             Wallpaper {
                 id: wallpaper
+                screen: win.modelData
             }
 
             Visualiser {

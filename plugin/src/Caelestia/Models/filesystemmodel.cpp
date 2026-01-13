@@ -12,6 +12,7 @@ FileSystemEntry::FileSystemEntry(const QString& path, const QString& relativePat
     , m_path(path)
     , m_relativePath(relativePath)
     , m_isImageInitialised(false)
+    , m_isVideoInitialised(false)
     , m_mimeTypeInitialised(false) {}
 
 QString FileSystemEntry::path() const {
@@ -53,6 +54,16 @@ bool FileSystemEntry::isImage() const {
         m_isImageInitialised = true;
     }
     return m_isImage;
+}
+
+bool FileSystemEntry::isVideo() const {
+    if (!m_isVideoInitialised) {
+        const QMimeDatabase db;
+        const QString mime = db.mimeTypeForFile(m_path).name();
+        m_isVideo = mime.startsWith("video/");
+        m_isVideoInitialised = true;
+    }
+    return m_isVideo;
 }
 
 QString FileSystemEntry::mimeType() const {
@@ -300,11 +311,19 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
 
         std::optional<QDirIterator> iter;
 
-        if (filter == Images) {
+        if (filter == Images || filter == Videos || filter == Media) {
             QStringList extraNameFilters = nameFilters;
-            const auto formats = QImageReader::supportedImageFormats();
-            for (const auto& format : formats) {
-                extraNameFilters << "*." + format;
+
+            if (filter == Images || filter == Media) {
+                const auto formats = QImageReader::supportedImageFormats();
+                for (const auto& format : formats) {
+                    extraNameFilters << "*." + format;
+                }
+            }
+
+            if (filter == Videos || filter == Media) {
+                // Common video formats
+                extraNameFilters << "*.mp4" << "*.mkv" << "*.webm" << "*.avi" << "*.mov" << "*.wmv" << "*.flv" << "*.m4v" << "*.ogv";
             }
 
             QDir::Filters filters = QDir::Files;
@@ -347,6 +366,21 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
                 QImageReader reader(path);
                 if (!reader.canRead()) {
                     continue;
+                }
+            } else if (filter == Videos) {
+                const QMimeDatabase db;
+                const QString mime = db.mimeTypeForFile(path).name();
+                if (!mime.startsWith("video/")) {
+                    continue;
+                }
+            } else if (filter == Media) {
+                QImageReader reader(path);
+                if (!reader.canRead()) {
+                    const QMimeDatabase db;
+                    const QString mime = db.mimeTypeForFile(path).name();
+                    if (!mime.startsWith("video/")) {
+                        continue;
+                    }
                 }
             }
 

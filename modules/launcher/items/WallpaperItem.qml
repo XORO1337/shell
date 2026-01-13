@@ -3,6 +3,7 @@ import qs.components.effects
 import qs.components.images
 import qs.services
 import qs.config
+import qs.utils
 import Caelestia.Models
 import Quickshell
 import QtQuick
@@ -12,6 +13,8 @@ Item {
 
     required property FileSystemEntry modelData
     required property PersistentProperties visibilities
+
+    readonly property bool isVideo: modelData.isVideo
 
     scale: 0.5
     opacity: 0
@@ -58,18 +61,41 @@ Item {
 
         MaterialIcon {
             anchors.centerIn: parent
-            text: "image"
+            text: root.isVideo ? "movie" : "image"
             color: Colours.tPalette.m3outline
             font.pointSize: Appearance.font.size.extraLarge * 2
             font.weight: 600
+            z: -1
         }
 
+        // Image thumbnail (for images only)
         CachingImage {
-            path: root.modelData.path
+            path: root.isVideo ? "" : root.modelData.path
             smooth: !root.PathView.view.moving
             cache: true
+            visible: !root.isVideo
 
             anchors.fill: parent
+        }
+
+        // Video play icon overlay (for videos)
+        Rectangle {
+            visible: root.isVideo
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Appearance.padding.small
+            width: videoIcon.implicitWidth + Appearance.padding.small * 2
+            height: videoIcon.implicitHeight + Appearance.padding.small * 2
+            radius: Appearance.rounding.small
+            color: Qt.rgba(0, 0, 0, 0.6)
+
+            MaterialIcon {
+                id: videoIcon
+                anchors.centerIn: parent
+                text: "play_arrow"
+                color: "white"
+                font.pointSize: Appearance.font.size.normal
+            }
         }
     }
 
